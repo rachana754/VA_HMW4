@@ -1,107 +1,98 @@
-
 <!DOCTYPE html>
-<html>
-    <head>
-        <title>Agricultural Losses </title>
-        <script src="https://d3js.org/d3.v5.min.js"></script>
-
-        <style type="text/css">
-        svg .myrect {
-            fill: steelblue;
-            stroke-width: 10px;
-        }
-        svg .myrect:hover {
-            fill: green;
-        }
-        </style>
-        
-        <script type="text/javascript">
-            var myData;
-            var margin = {top: 10, right: 10, bottom: 30, left: 100};
-            var svgWidth = 600 - margin.left - margin.right;
-            var svgHeight = 300 - margin.top - margin.bottom;
-            function loadData()
-            {
-              d3.csv("https://raw.githubusercontent.com/rachana754/VA_HW3/master/losses2015_transformed.csv")
-                .then(function(data)
-              {
-                myData = d3.nest()
-                            .key(function(d) { return d.Damage_Code;})
-                            .rollup(function(d) { 
-                              return d3.sum(d, function(g) {return g.Amount; });
-                            })
-                            .entries(data);
-                // datum = { key : Year, value : sum(Losses) }
-                createBarChart();
-              });
-            }
-            var tooltip = d3.select("myrect")
-               .append("div")
-              .style("position", "absolute")
-              .style("font-family", "'Open Sans', sans-serif")
-              .style("font-size", "12px")
-              .style("visibility", "hidden");
-            function createBarChart() {
-              var svg = d3.select("body")
-                          .append("svg")
-                          .attr("width", svgWidth + margin.left + margin.right)
-                          .attr("height", svgHeight + margin.top + margin.bottom)
-                          .append("g")
-                          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-              // generate scales
-              var xScale = d3.scaleBand()
-                                    .domain(myData.map( function(d) 
-                                      { return d.key;
-                                      }))
-                                    .range([0, svgWidth])
-                                    .paddingInner(0.05);
-              var yScale = d3.scaleLinear()
-                                    .domain([0, d3.max(myData, function(d) { return d.value; })])
-                                    .range([svgHeight, 0]);
-
-              // generate axis
-              svg.append("g")
-                  .attr("transform", "translate(0," + (svgHeight) + ")")
-                  .call(d3.axisBottom(xScale));
-                  
-              svg.append("g")
-                  // .attr("transform", "translate(0," + (svgHeight) + ")")
-                  .call(d3.axisLeft(yScale));
-                                // generate bars
-              svg.selectAll("rect")
-                  .data(myData)
-                  .enter()
-                  .append("rect")
-                  .attr("x", function(d, i)
-                    {
-                      
-                      return xScale(d.key);
-                    })
-                  .attr("y", function(d, i)
-                    {
-                      return yScale(d.value);
-                    })
-                  .attr("height", function(d, i)
-                    {
-                      return svgHeight-yScale(d.value);
-                    })
-                  .attr("width", function(d, i)
-                    {
-                      return xScale.bandwidth();
-                    })
-                  .attr("class", "myrect")
-                  .on("mouseover", function(d, i){
-                  return tooltip.style("visibility", "visible").text(d.Damage_Code + ": " + d.Amount);
-  })
-            }
-            window.onload = loadData;
-        </script>
+<meta charset="utf-8">
+<style>
+.bar {
+  fill: blue;
+}
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #D4D8DA;
+}
+.toolTip {
+  position: absolute;
+  display: none;
+  min-width: 80px;
+  height: auto;
+  background: none repeat scroll 0 0 #F1F3F3;
+  padding: 5px;
+  text-align: center;
+}
+.xScale path {
+  display: none;
+}
+body {
+  margin: 30px;
+  padding-right: 25px;
+  background-color: #F1F3F3    
+}
+</style>
+<svg width="1000" height="500"></svg>
+<title>Agricultural Losses 2015 </title>
+<h2>Agricultural Losses 2015 - Bar Chart</h2>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script>
+  var svg = d3.select("svg"),
+  margin = {top: 20, right: 20, bottom: 30, left: 180},
+  width = +svg.attr("width") - margin.left - margin.right,
+  height = +svg.attr("height") - margin.top - margin.bottom;  
+  var xScale = d3.scaleLinear().range([0, width]);
+  var y = d3.scaleBand().range([height, 0]);
+  var tip = d3.select("body").append("div").attr("class", "toolTip");
 
 
-    </head>
+  var g = svg.append("g")
+  .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+  
+  d3.csv("https://raw.githubusercontent.com/rachana754/VA_HW3/master/losses2015_transformed.csv", function(error, data) {
+    if (error) throw error;
 
+    data.forEach(function(d) {
+      d.Damage_Descp = d.Damage_Descp;
+      d.Amount = +d.Amount;
 
-    <body>
+    });
 
-    </body>
-</html>
+    var myData = d3.nest()
+    .key(function(d){
+      return d.Damage_Descp;
+    })
+    
+    .rollup(function(amount){
+      return d3.sum(amount, function(d) {return (d.Amount)});
+    })
+    .entries(data)
+    myData.sort(function(a, b) { return d3.descending(a.value, b.value)}) 
+
+    xScale.domain([0, d3.max(myData, function(d) { return d.value; })]);
+    y.domain(myData.map(function(d) { return d.key; })).padding(0.2);
+
+    g.append("g")
+    .attr("class", "x axis")
+    .attr("transform", "translate(0," + height + ")")
+    .call(d3.axisBottom(xScale).ticks(5).tickFormat(function(d) { return parseInt(d / 1000); }).tickSizeInner([-height]));
+
+    g.append("g")
+    .attr("class", "y axis")
+    .call(d3.axisLeft(y));
+
+    g.selectAll(".bar")
+    .data(myData)
+    .enter().append("rect")
+    .attr("class", "bar")
+    .attr("xScale", 0)
+    .attr("height", y.bandwidth())
+    .attr("y", function(d) { return y(d.key); })
+    .attr("width", function(d) { return xScale(d.value); 
+    })
+    .on("mouseout", function(d){ tooltip.style("display", "none");})
+    .on("mousemove", function(d){
+      tip
+      .style("left", d3.event.pageX + "px")
+      .style("top", d3.event.pageY + "px")
+      .style("display", "inline-block")
+      .html((d.key) + "<br>"+ (d.value));
+    });
+  });
+
+</script>

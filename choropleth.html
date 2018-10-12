@@ -1,25 +1,169 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
-       <head>
+<style>
+.states {
+  fill: #d3d3d3;
+  stroke: #ffffff;
+  stroke-linejoin: round;
+}
 
-        </head>
-        <body>
-        <!-- Plotly chart will be drawn inside this DIV -->
-        <div id="myDiv"></div>
-        </body>
+.q0-9 { fill: #d9e0f2; }
+.q1-9 { fill: #99b2dc; }
+.q2-9 { fill: #5e8dc9; }
+.q3-9 { fill: #2f5491; }
+.q4-9 { fill: #0e2344; }
 
-        <script>
-          var map = d3.geomap.choropleth()
-    .geofile('/d3-geomap/topojson/countries/USA.json')
-    .projection(d3.geo.albersUsa)
-    .column('2012')
-    .unitId('fips')
-    .scale(1000)
-    .legend(true);
+#q0-9 { background-color: #d9e0f2; }
+#q1-9 { background-color: #99b2dc; }
+#q2-9 { background-color: #5e8dc9; }
+#q3-9 { background-color: #2f5491; }
+#q4-9 { background-color: #0e2344; }
 
-d3.csv('/data/venture-capital.csv', function(error, data) {
-    d3.select('#map')
-        .datum(data)
-        .call(map.draw, map);
-});
-        </script>
+div.tooltip {
+  position: absolute;
+  left: 75px;
+  text-align: center;
+  height: 12px;
+  padding: 8px;
+  font-size: 13px;
+  font-family: 'Proxima-Nova', sans-serif;
+  background: #FFFFFF;
+  pointer-events: none;
+}
+
+.block {
+  width:18%;
+  height: 15px;
+  display:inline-block;
+}
+
+</style>
+<body>
+  <title>Agricultural Losses 2015 </title>
+  <h2>Agricultural Losses 2015 - Choropleth</h2>
+  <div class="g-chart"></div>
+ </body>  
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/queue-async/1.0.7/queue.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.19/topojson.min.js"></script>
+
+<script>
+var myData;
+//tooltip
+var div = d3.select("body").append("div")
+  .attr("class", "tooltip")
+  .style("opacity", 0);
+
+//dimensions
+var margin = {top: 10, left: 10, bottom: 10, right: 10},
+   width = window.outerWidth,
+   width = width - margin.left - margin.right,
+   mapRatio = .5,
+  height = width * mapRatio;
+
+var projection = d3.geo.albersUsa()
+    .scale(width)
+    .translate([width / 2, height / 2]);
+var path = d3.geo.path()
+    .projection(projection);
+var map = d3.select(".g-chart").append("svg")
+  .style('height', height + 'px')
+  .style('width', width + 'px');  
+
+queue()
+    .defer(d3.json, "https://raw.githubusercontent.com/rachana754/VA_HW3/master/us-10m.json")
+    .defer(d3.csv, "https://raw.githubusercontent.com/rachana754/VA_HW3/master/losses2015_transformed.csv")
+    .await(ready);
+  d3.csv("https://raw.githubusercontent.com/rachana754/VA_HW3/master/losses2015_transformed.csv", function(error, data) {
+    if (error) throw error;
+  
+data.forEach(function(d) {
+      d.State_Code = d.State_Code;
+      d.Amount = +d.Amount;
+   
+  });
+  
+   myData = d3.nest()
+    .key(function(d){
+      return d.State_Code;
+    }).sortKeys(d3.descending)
+    
+    .rollup(function(amount){
+      return d3.sum(amount, function(d) {return (d.Amount)});
+    })
+    .entries(data)
+    });
+
+d3.selection.prototype.moveToFront = function() {
+  return this.each(function(){
+    this.parentNode.appendChild(this);
+  });
+}; 
+d3.selection.prototype.moveToBack = function() { 
+  return this.each(function() { 
+  var firstChild = this.parentNode.firstChild; 
+    if (firstChild) { 
+      this.parentNode.insertBefore(this, firstChild); 
+    } 
+  }); 
+};    
+
+function ready(error, us, maptemplate) {
+  if (error) throw error; 
+
+  //color scale
+  var numMedian = d3.max(maptemplate, function(d) { return d.Amount;}); 
+  var quantize = d3.scale.quantize()
+    .domain([numMedian,200000000 ])
+    .range(d3.range(4).map(function(i) { return "q" + i + "-9"; }));
+ 
+  var dataByState = {};
+  var sumAmount=0;
+  myData.forEach(function(d) { 
+  dataByState[d.key] =+d.values; });
+  var stateByName = {};
+  maptemplate.forEach(function(d) { stateByName[d.State_Code] = d.State_Abv; });
+  map.append("g")
+    .attr("class", "states")
+    .selectAll("path")
+    .data(topojson.feature(us, us.objects.states).features)
+    .enter().append("path")
+    .attr("d", path)
+    .attr("class", function(d) { return quantize(dataByState[d.id]); })
+    .on("mouseover", function(d) {
+      var sel = d3.select(this);
+        sel.moveToFront();
+      d3.select(this).transition().duration(300).style("opacity", 0.8);
+      div.transition().duration(300)
+      .style("opacity", 1)
+      div.text(stateByName[d.id]+" : "+dataByState[d.id] )
+      .style("left", (d3.event.pageX) + "px")
+      .style("top", (d3.event.pageY -30) + "px");
+    })
+    .on("mouseout", function() {
+      var sel = d3.select(this);
+        sel.moveToBack();
+      d3.select(this)
+      .transition().duration(300)
+      .style("opacity", 1);
+      div.transition().duration(300)
+      .style("opacity", 0);
+    });
+d3.select(window).on('resize', resize);
+
+function resize() {
+    var w = d3.select(".g-chart").node().clientWidth;
+    width = w - margin.left - margin.right;
+    height = width * mapRatio;
+    var newProjection = d3.geo.albersUsa()
+      .scale(width)
+      .translate([width / 2, height / 2]);
+    path = d3.geo.path()
+      .projection(newProjection);    
+    map
+        .style('width', width + 'px')
+        .style('height', height + 'px');
+    map.selectAll("path").attr('d', path);
+}
+}
+</script>
